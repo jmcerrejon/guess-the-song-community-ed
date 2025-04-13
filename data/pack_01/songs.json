@@ -1,0 +1,36 @@
+{
+    "categories": [
+        {
+            "name": "Banda Sonora",
+            "description": "Adivina la canción de la banda sonora",
+            "songs": [
+                {
+                    "title": "Tema Principal de Star Wars",
+                    "file": "ost/star_wars.mp3",
+                    "video": "ost/star_wars.mp4"
+                },
+                {
+                    "title": "Tema de Indiana Jones",
+                    "file": "ost/indiana_jones.mp3",
+                    "video": false
+                }
+            ]
+        },
+        {
+            "name": "Películas",
+            "description": "Adivina la canción de las películas",
+            "songs": [
+                {
+                    "title": "My Heart Will Go On",
+                    "file": "titanic.mp3",
+                    "video": false
+                },
+                {
+                    "title": "Let It Go",
+                    "file": "frozen.mp3",
+                    "video": false
+                }
+            ]
+        }
+    ]
+} 

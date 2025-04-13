@@ -1,0 +1,44 @@
+es:
+  game_title: "Adivina la Canción Edición Comunitaria"
+  player: "Jugador"
+  points: "puntos"
+  category: "Categoría"
+  track: "Pista"
+  playing: "Reproduciendo"
+  song_paused: "Canción pausada"
+  song_resumed: "Canción reanudada"
+  waiting_for_answer: "Esperando respuesta de"
+  correct_answer: "gana"
+  wrong_answer: "pierde"
+  undo_action: "Deshecha última acción para"
+  no_video: "No hay video disponible para esta canción"
+  video_not_found: "Error: No se encontró el archivo de video"
+  playing_video: "Reproduciendo video..."
+  video_stopped: "Video detenido"
+  scores_shown: "Puntuaciones mostradas"
+  scores_hidden: "Puntuaciones ocultas"
+  press_buzz: "¡Presiona el botón rojo para responder!"
+  player_pressed: "¡presionó el botón!"
+
+  # Main menu
+  play: "¡Jugar!"
+  exit: "Salir"
+  version: "Versión"
+
+  # Controls
+  controls:
+    title: "Controles:"
+    pause: "Espacio = Pausa"
+    navigate: "Flechas = Navegar"
+    correct: "Q = Acierto (+5 puntos)"
+    wrong: "A = Error (-3 puntos)"
+    video: "V = Video"
+    buzz: "B = Buzz"
+    help: "H = Mostrar/Ocultar Ayuda"
+    scores: "S = Mostrar/Ocultar Puntuaciones"
+
+  # Categories and navigation
+  next_category: "Categoría siguiente:"
+  prev_category: "Categoría anterior:"
+  next_song: "¡Vamos con la siguiente!"
+  prev_song: "Volvemos a la anterior"
