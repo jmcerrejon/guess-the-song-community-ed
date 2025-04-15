@@ -1,6 +1,7 @@
+import sys
 import time
 
-import hid
+import hid  # type: ignore[import]
 
 
 class BuzzController:
@@ -22,10 +23,8 @@ class BuzzController:
             self.hid.write(self.light_array)
         except (IOError, ValueError, hid.HIDException) as e:
             print(
-                "Error: Buzz Controller not detected. Please connect the controller before starting."
+                f"Error: Buzz Controller not detected. Please connect the controller before starting. Details: {e}"
             )
-            import sys
-
             sys.exit(1)
 
     def light_blink(self, controller):
