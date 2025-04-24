@@ -11,13 +11,17 @@ help:
 
 install:
 	@echo "Creating virtual environment..."
-	@uv venv
+	@uv sync
 	@echo "Activating & Installing dependencies..."
 	@. .venv/bin/activate && uv pip install --deps .
 
 run:
 	@echo "Starting Guess The Song Community Edition..."
-	uv run src/main.py
+	@uv run src/main.py
+
+run-mac:
+	@echo "Starting Guess The Song Community Edition..."
+	DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH uv run src/main.py
 
 buzz-test:
 	@echo "You can test the Buzz controller now..."

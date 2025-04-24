@@ -65,11 +65,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 make install
 ```
 
+If you are using macOS, install the next dependencies using brew:
+
+```bash
+brew install ffmpeg hidapi
+```
+
 4. Run the game:
 
 ```bash
 make run # Run the game with default pack
 make run --pack pack_02 # or any other pack directory name
+make run-mac # Run the game for macOS and you have issues with hidapi
 ```
 
 5. To run the tests:
