@@ -59,8 +59,6 @@ def main():
             pygame.display.flip()
             clock.tick(60)
     finally:
-        if game.video_clip is not None:
-            game.video_clip.close()
         game.cleanup()
         pygame.quit()
 
