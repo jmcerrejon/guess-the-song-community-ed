@@ -1,12 +1,11 @@
 en:
   game_title: "Guess the Song Community Edition"
-  player: "Player"
+  player: "Team"
   points: "points"
   category: "Category"
   track: "Track"
   playing: "Playing"
   song_paused: "Song paused"
-  song_resumed: "Song resumed"
   waiting_for_answer: "Waiting for answer from"
   correct_answer: "gets"
   wrong_answer: "loses"

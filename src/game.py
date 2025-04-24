@@ -4,7 +4,7 @@ from pathlib import Path
 import i18n
 import pygame
 import pygame_menu
-from moviepy import VideoFileClip
+from ffpyplayer.player import MediaPlayer  # Importa ffpyplayer
 from pygame import mixer
 
 from buzz_controller import BuzzController
@@ -14,13 +14,14 @@ class Game:
     def __init__(self, screen_width, screen_height, song_pack="pack_01"):
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.MESSAGE_SHOW_TIMEOUT = 7000
         self.players = [
             {"name": "", "score": 0},
             {"name": "", "score": 0},
             {"name": "", "score": 0},
             {"name": "", "score": 0},
         ]
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.song_pack = song_pack
         self.current_category = 0
         self.current_song = 0
@@ -34,8 +35,6 @@ class Game:
         self.waiting_for_player = None
         self.show_controls = False
         self.is_video_playing = False
-        self.video_clip = None
-        self.video_frame = None
         self.video_start_time = 0
         self.buzz_controller = BuzzController()
         self.available_controllers = [0, 1, 2, 3]
@@ -51,6 +50,15 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.title_font = pygame.font.Font(None, 72)
 
+        self.media_player = None
+        self.video_cap = None
+        self.video_surface = None
+        self.video_fps = 25
+        self.last_video_frame_time = 0
+
+        self.CORRECT_ANSWER_POINTS = 5
+        self.WRONG_ANSWER_POINTS = 3
+
     def update_translations(self):
         pass
 
@@ -61,11 +69,11 @@ class Game:
                 data = json.load(file)
                 return data
         except FileNotFoundError:
-            print(f"Error: No se encontró el archivo data/{self.song_pack}/songs.json")
+            print(f"Error: File not found data/{self.song_pack}/songs.json")
             return {"categories": []}
         except json.JSONDecodeError:
             print(
-                f"Error: El archivo data/{self.song_pack}/songs.json no tiene un formato JSON válido"
+                f"Error: The file data/{self.song_pack}/songs.json has an invalid JSON format"
             )
             return {"categories": []}
 
@@ -79,6 +87,12 @@ class Game:
 
     def next_category(self):
         if self.current_category < len(self.songs_data["categories"]) - 1:
+            mixer.music.stop()
+            if self.is_video_playing:
+                self.stop_video()
+            self.is_buzz_round_active = False
+            for controller in self.available_controllers:
+                self.buzz_controller.light_set(controller, False)
             self.current_category += 1
             self.current_song = 0
             self.play_current_song()
@@ -88,6 +102,13 @@ class Game:
 
     def previous_category(self):
         if self.current_category > 0:
+            # Detener audio, video y pulsadores
+            mixer.music.stop()
+            if self.is_video_playing:
+                self.stop_video()
+            self.is_buzz_round_active = False
+            for controller in self.available_controllers:
+                self.buzz_controller.light_set(controller, False)
             self.current_category -= 1
             self.current_song = 0
             self.play_current_song()
@@ -96,6 +117,8 @@ class Game:
             )
 
     def next_song(self):
+        if self.is_video_playing:
+            self.stop_video()
         current_category = self.songs_data["categories"][self.current_category]
         if self.current_song < len(current_category["songs"]) - 1:
             self.current_song += 1
@@ -118,7 +141,7 @@ class Game:
         try:
             file_path = Path(f"data/{self.song_pack}") / current_song["file"]
             if not file_path.exists():
-                self.set_debug_message(f"Error: No se encontró el archivo {file_path}")
+                self.set_debug_message(f"Error: File not found {file_path}")
                 return
 
             if file_path.suffix.lower() == ".m4a":
@@ -131,8 +154,8 @@ class Game:
                         f"{i18n.t('playing')} {current_song['title']}"
                     )
                 except Exception as e:
-                    self.set_debug_message(f"Error al reproducir M4A: {str(e)}")
-                    print(f"Error detallado al reproducir M4A: {str(e)}")
+                    self.set_debug_message(f"Error playing M4A: {str(e)}")
+                    print(f"Detailed error playing M4A: {str(e)}")
             else:
                 mixer.music.load(str(file_path))
                 mixer.music.play()
@@ -140,9 +163,9 @@ class Game:
                 self.is_paused = False
                 self.set_debug_message(f"{i18n.t('playing')} {current_song['title']}")
         except Exception as e:
-            self.set_debug_message(f"Error al cargar la canción: {str(e)}")
-            print(f"Error al cargar la canción: {file_path}")
-            print(f"Error detallado: {str(e)}")
+            self.set_debug_message(f"Error loading song: {str(e)}")
+            print(f"Error loading song: {file_path}")
+            print(f"Detailed error: {str(e)}")
 
     def toggle_pause(self):
         if self.current_song_playing:
@@ -157,7 +180,6 @@ class Game:
                 mixer.music.unpause()
                 self.is_paused = False
                 self.start_buzz_round()
-                self.set_debug_message(i18n.t("song_resumed"))
 
     def pause_for_player(self, player_index):
         if mixer.music.get_busy() and not self.is_paused:
@@ -176,7 +198,7 @@ class Game:
             mixer.music.unpause()
             self.is_paused = False
             self.waiting_for_player = None
-            self.set_debug_message(i18n.t("song_resumed"))
+            self.start_buzz_round()
 
     def add_points(self, player_index, points):
         if self.waiting_for_player == player_index:
@@ -194,9 +216,16 @@ class Game:
             points_text = (
                 i18n.t("correct_answer") if points > 0 else i18n.t("wrong_answer")
             )
-            self.set_debug_message(
-                f"{player_name} {points_text} {abs(points)} {i18n.t('points')}"
-            )
+            if points > 0:
+                current_song = self.songs_data["categories"][self.current_category]["songs"][self.current_song]
+                song_title = current_song.get("title", "")
+                self.set_debug_message(
+                    f"{player_name} {points_text} {abs(points)} {i18n.t('points')} - {song_title}"
+                )
+            else:
+                self.set_debug_message(
+                    f"{player_name} {points_text} {abs(points)} {i18n.t('points')}"
+                )
             self.waiting_for_player = None
 
     def undo_last_action(self):
@@ -218,6 +247,7 @@ class Game:
             self.play_video()
 
     def play_video(self):
+        import cv2
         current_song = self.songs_data["categories"][self.current_category]["songs"][
             self.current_song
         ]
@@ -233,35 +263,47 @@ class Game:
             return
 
         try:
-            self.video_clip = VideoFileClip(str(video_path))
+            self.stop_video()
+            self.media_player = MediaPlayer(str(video_path))
+            self.video_cap = cv2.VideoCapture(str(video_path))
+            self.video_fps = self.video_cap.get(cv2.CAP_PROP_FPS) or 25
+            self.last_video_frame_time = pygame.time.get_ticks()
             self.is_video_playing = True
             self.video_start_time = pygame.time.get_ticks() / 1000.0
             self.set_debug_message(i18n.t("playing_video"))
         except Exception as e:
-            self.set_debug_message(f"Error al cargar el video: {str(e)}")
+            self.set_debug_message(f"Error loading video: {str(e)}")
 
     def stop_video(self):
-        if self.video_clip is not None:
-            self.video_clip.close()
-            self.video_clip = None
+        if self.media_player is not None:
+            self.media_player.close_player()
+            self.media_player = None
+        if self.video_cap is not None:
+            self.video_cap.release()
+            self.video_cap = None
         self.is_video_playing = False
-        self.video_frame = None
+        self.video_surface = None
         self.set_debug_message(i18n.t("video_stopped"))
 
     def update_video_frame(self):
-        if self.is_video_playing and self.video_clip is not None:
-            try:
-                current_time = pygame.time.get_ticks() / 1000.0 - self.video_start_time
-
-                if current_time < self.video_clip.duration:
-                    frame = self.video_clip.get_frame(current_time)
-                    frame = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
-                    self.video_frame = frame
-                else:
+        if self.is_video_playing and self.video_cap is not None:
+            now = pygame.time.get_ticks()
+            frame_interval = 1000 / self.video_fps  # en milisegundos
+            if now - self.last_video_frame_time >= frame_interval:
+                ret, frame = self.video_cap.read()
+                if not ret:
                     self.stop_video()
-            except Exception as e:
-                self.set_debug_message(f"Error al actualizar frame: {str(e)}")
-                self.stop_video()
+                    return
+                import cv2
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+                self.video_surface = frame
+                self.last_video_frame_time = now
+            # Avanza el audio
+            if self.media_player is not None:
+                audio_frame, val = self.media_player.get_frame()
+                if val == 'eof':
+                    self.stop_video()
 
     def set_debug_message(self, message):
         self.debug_message = message
@@ -269,14 +311,11 @@ class Game:
 
     def update_debug_message(self):
         current_time = pygame.time.get_ticks()
-        if current_time - self.debug_message_time > 5000:
+        if current_time - self.debug_message_time > self.MESSAGE_SHOW_TIMEOUT:
             self.debug_message = ""
 
     def draw(self, screen):
         screen.fill((0, 0, 0))
-
-        if self.is_video_playing:
-            self.update_video_frame()
 
         player_y = 50
         for i, player in enumerate(self.players, 1):
@@ -290,7 +329,6 @@ class Game:
 
         if self.songs_data["categories"]:
             current_category = self.songs_data["categories"][self.current_category]
-            current_song = current_category["songs"][self.current_song]
 
             category_text = f"{i18n.t('category')}: {current_category['name']}"
             song_text = f"{i18n.t('track')}: {self.current_song + 1}/{len(current_category['songs'])}"
@@ -303,7 +341,7 @@ class Game:
 
         if (
             self.debug_message
-            and pygame.time.get_ticks() - self.debug_message_time < 3000
+            and pygame.time.get_ticks() - self.debug_message_time < self.MESSAGE_SHOW_TIMEOUT
         ):
             debug_surface = self.font.render(self.debug_message, True, (255, 255, 255))
             screen.blit(debug_surface, (20, self.screen_height - 40))
@@ -332,38 +370,32 @@ class Game:
                 screen.blit(control_surface, (self.screen_width // 2 + 20, help_y))
                 help_y += 40
 
-        if self.is_video_playing and self.video_frame is not None:
-            try:
-                video_width = self.video_frame.get_width()
-                video_height = self.video_frame.get_height()
-                screen_width = self.screen_width
-                screen_height = self.screen_height
-
-                scale = min(screen_width / video_width, screen_height / video_height)
-                new_width = int(video_width * scale)
-                new_height = int(video_height * scale)
-
-                scaled_frame = pygame.transform.scale(
-                    self.video_frame, (new_width, new_height)
-                )
-                x = (screen_width - new_width) // 2
-                y = (screen_height - new_height) // 2
-                screen.blit(scaled_frame, (x, y))
-            except Exception as e:
-                self.set_debug_message(f"Error al dibujar video: {str(e)}")
-                self.stop_video()
+        if self.is_video_playing and self.video_surface is not None:
+            video_rect = self.video_surface.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
+            screen.blit(self.video_surface, video_rect)
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_q:
                 if self.waiting_for_player is not None:
-                    self.add_points(self.waiting_for_player, 5)
-                    self.resume_song()
+                    current_song = self.songs_data["categories"][self.current_category]["songs"][self.current_song]
+                    if current_song.get("video", False) and current_song.get("video", False) != "false":
+                        mixer.music.stop()
+                        self.add_points(self.waiting_for_player, self.CORRECT_ANSWER_POINTS)
+                        self.play_video()
+                    else:
+                        self.add_points(self.waiting_for_player, self.CORRECT_ANSWER_POINTS)
+                        self.resume_song()
             elif event.key == pygame.K_a and self.waiting_for_player is not None:
-                self.add_points(self.waiting_for_player, -3)
+                self.add_points(self.waiting_for_player, -self.WRONG_ANSWER_POINTS)
                 self.resume_song()
             elif event.key == pygame.K_SPACE:
-                self.toggle_pause()
+                if self.is_paused:
+                    self.resume_song()
+                else:
+                    if self.is_video_playing:
+                        self.stop_video()
+                    self.toggle_pause()
             elif event.key == pygame.K_RIGHT:
                 self.next_song()
             elif event.key == pygame.K_LEFT:
@@ -385,6 +417,7 @@ class Game:
             elif event.key == pygame.K_h:
                 self.show_controls = not self.show_controls
             elif event.key == pygame.K_v:
+                mixer.music.stop()
                 self.toggle_video()
             elif event.key == pygame.K_s:
                 self.show_scores = not self.show_scores
@@ -433,6 +466,9 @@ class Game:
                             f"¡{player_text} {i18n.t('player_pressed')}!"
                         )
                         return
+
+        if self.is_video_playing:
+            self.update_video_frame()
 
     def cleanup(self):
         if self.buzz_controller:
