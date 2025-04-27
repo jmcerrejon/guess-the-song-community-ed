@@ -4,7 +4,6 @@ en:
   points: "points"
   category: "Category"
   track: "Track"
-  playing: "Playing"
   song_paused: "Song paused"
   waiting_for_answer: "Waiting for answer from"
   correct_answer: "gets"
@@ -12,19 +11,14 @@ en:
   undo_action: "Undone last action for"
   no_video: "No video available for this song"
   video_not_found: "Error: Video file not found"
-  playing_video: "Playing video..."
   video_stopped: "Video stopped"
   scores_shown: "Scores shown"
   scores_hidden: "Scores hidden"
   press_buzz: "Press the red button to answer!"
   player_pressed: "pressed the button!"
-
-  # Main menu
   play: "Play!"
   exit: "Exit"
   version: "Version"
-
-  # Controls
   controls:
     title: "Controls:"
     pause: "Space = Pause"
@@ -35,8 +29,6 @@ en:
     buzz: "B = Buzz"
     help: "H = Show/Hide Help"
     scores: "S = Show/Hide Scores"
-
-  # Categories and navigation
   next_category: "Next category:"
   prev_category: "Previous category:"
   next_song: "Let's go with the next one!"

@@ -51,6 +51,16 @@ class BuzzController:
 
             self.hid.write(self.light_array)
 
+    def clear_button_states(self):
+        while True:
+            data = self.hid.read(5)
+            if not data:
+                break
+
+        for controller in range(4):
+            for button in self.buttonState[controller]:
+                self.buttonState[controller][button] = False
+
     def get_button_status(self):
         data = self.hid.read(5)
         if data:

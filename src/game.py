@@ -1,10 +1,12 @@
 import json
+import time
 from pathlib import Path
 
+import cv2
 import i18n
 import pygame
 import pygame_menu
-from ffpyplayer.player import MediaPlayer  # Importa ffpyplayer
+from ffpyplayer.player import MediaPlayer
 from pygame import mixer
 
 from buzz_controller import BuzzController
@@ -99,10 +101,10 @@ class Game:
             self.set_debug_message(
                 f"{i18n.t('next_category')} {self.songs_data['categories'][self.current_category]['name']}"
             )
+            self.start_buzz_round()
 
     def previous_category(self):
         if self.current_category > 0:
-            # Detener audio, video y pulsadores
             mixer.music.stop()
             if self.is_video_playing:
                 self.stop_video()
@@ -115,6 +117,7 @@ class Game:
             self.set_debug_message(
                 f"{i18n.t('prev_category')} {self.songs_data['categories'][self.current_category]['name']}"
             )
+            self.start_buzz_round()
 
     def next_song(self):
         if self.is_video_playing:
@@ -286,24 +289,24 @@ class Game:
         self.set_debug_message(i18n.t("video_stopped"))
 
     def update_video_frame(self):
-        if self.is_video_playing and self.video_cap is not None:
-            now = pygame.time.get_ticks()
-            frame_interval = 1000 / self.video_fps  # en milisegundos
-            if now - self.last_video_frame_time >= frame_interval:
-                ret, frame = self.video_cap.read()
-                if not ret:
-                    self.stop_video()
-                    return
-                import cv2
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
-                self.video_surface = frame
-                self.last_video_frame_time = now
-            # Avanza el audio
-            if self.media_player is not None:
-                audio_frame, val = self.media_player.get_frame()
-                if val == 'eof':
-                    self.stop_video()
+        if not self.is_video_playing or self.video_cap is None:
+            return
+        now = pygame.time.get_ticks()
+        frame_interval = 1000 / self.video_fps
+        if now - self.last_video_frame_time >= frame_interval:
+            ret, frame = self.video_cap.read()
+            if not ret:
+                self.stop_video()
+                return
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.resize(frame, (self.screen_width, self.screen_height))
+            frame = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+            self.video_surface = frame
+            self.last_video_frame_time = now
+        if self.media_player is not None:
+            audio_frame, val = self.media_player.get_frame()
+            if val == 'eof':
+                self.stop_video()
 
     def set_debug_message(self, message):
         self.debug_message = message
@@ -385,7 +388,9 @@ class Game:
                         self.play_video()
                     else:
                         self.add_points(self.waiting_for_player, self.CORRECT_ANSWER_POINTS)
-                        self.resume_song()
+                        mixer.music.unpause()
+                        self.is_paused = False
+                        self.waiting_for_player = None
             elif event.key == pygame.K_a and self.waiting_for_player is not None:
                 self.add_points(self.waiting_for_player, -self.WRONG_ANSWER_POINTS)
                 self.resume_song()
@@ -430,6 +435,9 @@ class Game:
 
     def start_buzz_round(self):
         if not self.is_buzz_round_active:
+            self.buzz_controller.clear_button_states()
+            time.sleep(0.1)
+
             self.is_buzz_round_active = True
             self.buzz_start_time = pygame.time.get_ticks() / 1000.0
             self.last_buzz_check = self.buzz_start_time
@@ -451,21 +459,21 @@ class Game:
 
             if current_time - self.last_buzz_check >= self.buzz_check_interval:
                 self.last_buzz_check = current_time
-
                 button_states = self.buzz_controller.get_button_status()
 
-                for controller in self.available_controllers:
-                    if button_states[controller]["red"]:
-                        self.is_buzz_round_active = False
-                        for c in self.available_controllers:
-                            self.buzz_controller.light_set(c, False)
-                        self.buzz_controller.light_set(controller, True)
-                        self.pause_for_player(controller)
-                        player_text = f"{i18n.t('player')} {controller + 1}"
-                        self.set_debug_message(
-                            f"¡{player_text} {i18n.t('player_pressed')}!"
-                        )
-                        return
+                if self.is_buzz_round_active:
+                    for controller in self.available_controllers:
+                        if button_states[controller]["red"]:
+                            self.is_buzz_round_active = False
+                            for c in self.available_controllers:
+                                self.buzz_controller.light_set(c, False)
+                            self.buzz_controller.light_set(controller, True)
+                            self.pause_for_player(controller)
+                            player_text = f"{i18n.t('player')} {controller + 1}"
+                            self.set_debug_message(
+                                f"¡{player_text} {i18n.t('player_pressed')}!"
+                            )
+                            return
 
         if self.is_video_playing:
             self.update_video_frame()
@@ -520,4 +528,5 @@ def create_main_menu(game, screen_width, screen_height, game_title):
     )
     version_label.set_position(0, screen_height - 30)
 
+    return menu
     return menu
